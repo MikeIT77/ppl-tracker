@@ -1,0 +1,13 @@
+{
+  "name": "PPL Tracker",
+  "short_name": "PPL",
+  "description": "Personal workout tracker — log sets, track progress, sync via GitHub.",
+  "start_url": "./workout-tracker.html",
+  "display": "standalone",
+  "background_color": "#0d0d0f",
+  "theme_color": "#0d0d0f",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
