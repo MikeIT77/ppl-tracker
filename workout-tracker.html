@@ -338,7 +338,7 @@ body.mobile-forced .page{padding:12px;}
   <div class="mobile-nav-top">
     <span class="nav-logo">PPL</span>
     <button class="mnav-btn-sd" id="mnav-sd-btn" onclick="showPage('settings-data',null,true)">Settings &amp; Data</button>
-    <button class="mnav-btn-sd" onclick="showTodos()" style="color:var(--accent);border-color:rgba(232,255,71,0.3);">To Dos</button>
+    <button class="mnav-btn-sd" onclick="showTodos()" style="color:var(--push);border-color:rgba(255,107,74,0.3);">To Dos</button>
     <div class="mobile-user-info">
       <span id="sync-status-mobile" class="sync-status" style="font-size:10px;font-family:'DM Mono',monospace;"></span>
       <button onclick="showGitHubSettings()" style="font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;cursor:pointer;">⚙ GitHub</button>
@@ -360,7 +360,7 @@ body.mobile-forced .page{padding:12px;}
   <button class="nav-btn" onclick="showPage('progress',this)">Progress</button>
   <button class="nav-btn" onclick="showPage('prs',this)">PRs</button>
   <button class="nav-btn" onclick="showPage('profile',this)">Profile</button>
-  <button class="nav-btn" onclick="showTodos()" style="color:var(--accent);border:1px solid rgba(232,255,71,0.2);">To Dos</button>
+  <button class="nav-btn" onclick="showTodos()" style="color:var(--push);border:1px solid rgba(255,107,74,0.3);">To Dos</button>
   <div style="display:flex;flex-direction:column;align-items:center;margin-left:6px;gap:3px;">
     <span id="sync-status" class="sync-status" style="font-size:10px;font-family:'DM Mono',monospace;white-space:nowrap;"></span>
     <button onclick="showGitHubSettings()" style="font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px;cursor:pointer;font-family:var(--fm);">⚙ GitHub</button>
@@ -3162,7 +3162,7 @@ if('serviceWorker' in navigator) {
 }
 
 // ─── TO DOS MODAL ─────────────────────────────────────────────────────────────
-const TODOS_CONTENT = `TO DOs - Personal Training App
+const TODOS_DEFAULT = `TO DOs - Personal Training App
 ================================
 
 1- When selecting a custom workout, exercise pic doesn't appear. (e.g. DB Skullcrusher)
@@ -3174,20 +3174,53 @@ const TODOS_CONTENT = `TO DOs - Personal Training App
      This default weight is user-specific and does not affect the global exercise definition.
 `;
 
-function showTodos() {
-  document.getElementById('todos-body').textContent = TODOS_CONTENT;
-  document.getElementById('todos-overlay').style.display = 'flex';
+let _todosSHA = null;
+
+async function showTodos() {
+  const overlay = document.getElementById('todos-overlay');
+  const ta = document.getElementById('todos-body');
+  const saveBtn = document.getElementById('todos-save-btn');
+  ta.value = 'Loading…';
+  saveBtn.textContent = 'Save';
+  saveBtn.disabled = false;
+  overlay.style.display = 'flex';
+  try {
+    const { base64, sha } = await GH.readFileRaw('todos.txt');
+    _todosSHA = sha;
+    ta.value = decodeURIComponent(escape(atob(base64)));
+  } catch(e) {
+    _todosSHA = null;
+    ta.value = TODOS_DEFAULT;
+  }
+}
+
+async function saveTodos() {
+  const ta = document.getElementById('todos-body');
+  const saveBtn = document.getElementById('todos-save-btn');
+  saveBtn.textContent = 'Saving…';
+  saveBtn.disabled = true;
+  try {
+    const encoded = btoa(unescape(encodeURIComponent(ta.value)));
+    _todosSHA = await GH.writeFile('todos.txt', encoded, _todosSHA, 'update todos');
+    saveBtn.textContent = 'Saved ✓';
+  } catch(e) {
+    saveBtn.textContent = 'Error — retry';
+    saveBtn.disabled = false;
+  }
 }
 </script>
 
 <!-- TO DOS MODAL -->
 <div id="todos-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9990;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:var(--surface);border:1px solid rgba(232,255,71,0.3);border-radius:14px;padding:20px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:12px;">
+  <div style="background:var(--surface);border:1px solid rgba(255,107,74,0.3);border-radius:14px;padding:20px;max-width:560px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:12px;" onclick="event.stopPropagation()">
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <span style="font-family:var(--fd);font-size:24px;color:var(--accent);letter-spacing:1px;">TO DOs</span>
-      <button onclick="document.getElementById('todos-overlay').style.display='none'" style="background:none;border:1px solid var(--border2);border-radius:6px;color:var(--muted);padding:4px 10px;cursor:pointer;font-size:12px;">Close</button>
+      <span style="font-family:var(--fd);font-size:24px;color:var(--push);letter-spacing:1px;">TO DOs</span>
+      <div style="display:flex;gap:8px;">
+        <button id="todos-save-btn" onclick="saveTodos()" style="background:rgba(255,107,74,0.15);border:1px solid rgba(255,107,74,0.4);border-radius:6px;color:var(--push);padding:4px 14px;cursor:pointer;font-size:12px;font-weight:600;">Save</button>
+        <button onclick="document.getElementById('todos-overlay').style.display='none'" style="background:none;border:1px solid var(--border2);border-radius:6px;color:var(--muted);padding:4px 10px;cursor:pointer;font-size:12px;">Close</button>
+      </div>
     </div>
-    <pre id="todos-body" style="font-family:var(--fm);font-size:13px;color:var(--text);white-space:pre-wrap;overflow-y:auto;margin:0;line-height:1.6;"></pre>
+    <textarea id="todos-body" style="font-family:var(--fm);font-size:13px;color:var(--text);background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px;white-space:pre-wrap;overflow-y:auto;margin:0;line-height:1.6;resize:vertical;min-height:260px;outline:none;width:100%;"></textarea>
   </div>
 </div>
 
