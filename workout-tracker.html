@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PPL Tracker</title>
+<title>Workout Tracker</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0d0d0f">
 <meta name="mobile-web-app-capable" content="yes">
@@ -144,10 +144,15 @@ body{font-family:var(--fb);background:var(--bg);color:var(--text);min-height:100
 .history-exercises{font-size:12px;color:var(--muted);font-family:var(--fm);}
 .history-vol{font-size:12px;color:var(--accent);font-family:var(--fm);margin-top:3px;}
 .history-detail{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
-.history-ex-row{display:grid;grid-template-columns:160px 1fr;gap:4px 12px;align-items:baseline;}
+.history-ex-row{display:grid;grid-template-columns:160px minmax(0,1fr) auto;gap:4px 12px;align-items:baseline;}
 .history-ex-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .history-ex-name.continuation{color:transparent;user-select:none;}
 .history-set-val{font-size:12px;color:var(--accent);font-family:var(--fm);}
+.history-action-group{display:flex;gap:6px;justify-content:flex-end;align-items:center;}
+.history-action-btn{border:none;background:transparent;color:var(--accent);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:6px;transition:background 0.15s;}
+.history-action-btn:hover{background:rgba(232,255,71,0.12);}
+.history-edit-btn{color:var(--accent2);}
+.history-del-btn{color:var(--red);}
 /* PROGRESS */
 .filter-pill{padding:5px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer;transition:all 0.15s;font-weight:500;}
 .filter-pill.active{background:var(--surface);border-color:var(--accent);color:var(--accent);}
@@ -299,7 +304,7 @@ body.mobile-forced .page{padding:12px;}
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:#0d0d0f;flex-direction:column;align-items:center;justify-content:center;gap:0;z-index:9999;overflow-y:auto;padding:20px;">
   <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
     <div style="text-align:center;margin-bottom:8px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:#e8ff47;letter-spacing:2px;line-height:1;">PPL</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;color:#e8ff47;letter-spacing:2px;line-height:1;">WORKOUT</div>
       <div style="color:#555;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-family:'DM Mono',monospace;">Tracker</div>
     </div>
     <div style="background:#161618;border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px;">
@@ -316,7 +321,7 @@ body.mobile-forced .page{padding:12px;}
       </div>
       <div>
         <label style="display:block;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#555;margin-bottom:5px;">Repository</label>
-        <input id="gh-repo-input" type="text" placeholder="yourusername/ppl-data"
+        <input id="gh-repo-input" type="text" placeholder="yourusername/workout-data"
           style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#1e1e21;color:#f0f0f0;font-size:13px;font-family:'DM Mono',monospace;outline:none;box-sizing:border-box;"
           onkeydown="if(event.key==='Enter')submitSetup()">
         <div style="font-size:10px;color:#444;margin-top:4px;">Create a new private repo on GitHub first, then paste <code style="color:#888;">owner/reponame</code> here.</div>
@@ -336,7 +341,7 @@ body.mobile-forced .page{padding:12px;}
 <!-- MOBILE NAV -->
 <nav class="mobile-nav">
   <div class="mobile-nav-top">
-    <span class="nav-logo">PPL</span>
+    <span class="nav-logo">WORKOUT</span>
     <button class="mnav-btn-sd" id="mnav-sd-btn" onclick="showPage('settings-data',null,true)">Settings &amp; Data</button>
     <button class="mnav-btn-sd" onclick="showTodos()" style="color:var(--push);border-color:rgba(255,107,74,0.3);">To Dos</button>
     <div class="mobile-user-info">
@@ -352,7 +357,7 @@ body.mobile-forced .page{padding:12px;}
 </nav>
 
 <nav class="nav">
-  <span class="nav-logo">PPL</span>
+  <span class="nav-logo">WORKOUT</span>
   <button class="nav-btn active" onclick="showPage('log',this)">Log a Workout</button>
   <button class="nav-btn" onclick="showPage('plans',this)">Workout Plans</button>
   <button class="nav-btn" onclick="showPage('exercises',this)">Exercises</button>
@@ -472,7 +477,43 @@ body.mobile-forced .page{padding:12px;}
     <div class="stat-card"><div class="stat-val" id="stat-vol">0</div><div class="stat-label">Volume</div></div>
   </div>
   <div id="history-list"></div>
-</div>
+  </div>
+
+  <!-- EDIT HISTORY ENTRY MODAL -->
+  <div class="ce-modal-ov" id="edit-log-modal-ov" onclick="if(event.target===this)closeEditLogModal()">
+    <div class="ce-modal">
+      <div class="ce-modal-header">
+        <div class="ce-modal-title">Edit Log Entry</div>
+      </div>
+      <div class="ce-modal-body" style="padding:0 16px 16px;">
+        <div class="form-row-2">
+          <div class="form-group"><label>Date</label><input type="date" id="edit-log-date"></div>
+          <div class="form-group"><label>Exercise</label><input type="text" id="edit-log-exercise" readonly></div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group"><label>Day Name</label><input type="text" id="edit-log-dayname" readonly></div>
+          <div class="form-group"><label>Day Type</label><input type="text" id="edit-log-daytype" readonly></div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group"><label>Sets</label><input type="number" id="edit-log-sets" min="0"></div>
+          <div class="form-group"><label>Reps / Laps</label><input type="number" id="edit-log-reps" min="0"></div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group"><label>Weight (lbs)</label><input type="number" id="edit-log-weight" min="0" step="0.5"></div>
+          <div class="form-group"><label>Duration (min)</label><input type="number" id="edit-log-duration" min="0"></div>
+        </div>
+        <div class="form-group"><label>Notes</label><input type="text" id="edit-log-notes"></div>
+        <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="edit-log-single"><label for="edit-log-single" style="margin:0;font-size:12px;color:var(--muted);">Single rep entry</label>
+        </div>
+      </div>
+      <div class="ce-modal-footer">
+        <button class="ce-cancel" onclick="closeEditLogModal()">Cancel</button>
+        <button class="log-btn" style="flex:1;" onclick="saveEditedLog()">Save</button>
+        <button class="ce-cancel" style="background:rgba(255,74,74,0.14);color:var(--red);" onclick="deleteHistoryLog()">Delete</button>
+      </div>
+    </div>
+  </div>
 
 <!-- PROGRESS PAGE -->
 <div id="page-progress" class="page">
@@ -701,14 +742,6 @@ body.mobile-forced .page{padding:12px;}
         <select id="ce-equipment" onchange="handleEquipSelect(this)" style="color-scheme:dark;">
           <option value="">+ Add equipment...</option>
         </select>
-      </div>
-      <!-- Global toggle — admin only -->
-      <div id="ce-global-wrap" style="display:none;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid rgba(232,255,71,0.2);background:rgba(232,255,71,0.05);">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-          <input type="checkbox" id="ce-global" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
-          <span style="font-size:12px;font-weight:600;color:var(--accent);">Global exercise</span>
-          <span style="font-size:11px;color:var(--muted);font-weight:400;">— visible to all users, locked for editing</span>
-        </label>
       </div>
       <!-- Photos — only shown in edit mode -->
       <div id="ce-images-wrap" style="display:none;margin-top:4px;">
@@ -1822,8 +1855,6 @@ function openCreateExModal() {
   document.getElementById('ce-weight').value = '';
   document.getElementById('ce-sets-reps-wrap').style.display = 'none';
   document.getElementById('ce-images-wrap').style.display = 'none';
-  document.getElementById('ce-global-wrap').style.display = 'none';
-  document.getElementById('ce-global').checked = false;
   renderCeCatPills();
   renderCeEquipPills();
   updateWeightLabel();
@@ -1846,8 +1877,6 @@ async function openEditExModal(name) {
   document.getElementById('ce-sets').value = entry.sets || '';
   document.getElementById('ce-reps').value = entry.reps || '';
   document.getElementById('ce-weight').value = entry.weight || '';
-  document.getElementById('ce-global-wrap').style.display = 'none';
-  document.getElementById('ce-global').checked = !!entry.is_global;
   document.getElementById('ce-images-wrap').style.display = 'block';
   // Load existing images from GitHub/cache
   ceImages = {1:null,2:null,3:null,4:null};
@@ -2003,6 +2032,9 @@ async function openGal(name){
   if(!c.children.length) return;
   document.getElementById('gal-ov').classList.add('open');
 }
+function hasExerciseImage(name) {
+  return !!EX_IMAGES[name] || Object.keys(userExImages[name]||{}).length > 0;
+}
 function closeGal(){document.getElementById('gal-ov').classList.remove('open');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeGal();});
 document.addEventListener('click', e => {
@@ -2024,6 +2056,8 @@ document.addEventListener('click', e => {
 });
 
 // HISTORY
+let editingHistoryLogId = null;
+
 function renderHistory(){
   document.getElementById('stat-sessions').textContent=[...new Set(logs.map(l=>l.date))].length;
   document.getElementById('stat-sets').textContent=logs.length;
@@ -2062,6 +2096,10 @@ function renderHistory(){
         <div class="history-ex-row">
           <span class="history-ex-name${i>0?' continuation':''}">${i===0?exName+':':''}</span>
           <span class="history-set-val">${setLabel(s)}</span>
+          <span class="history-action-group">
+            <button class="history-action-btn history-edit-btn" onclick="openEditLogModal(${s.id})">Edit</button>
+            <button class="history-action-btn history-del-btn" onclick="deleteHistoryLogById(${s.id})">Del</button>
+          </span>
         </div>`).join('');
     }).join('');
 
@@ -2070,6 +2108,67 @@ function renderHistory(){
       <div class="history-detail">${rows}</div>`;
     c.appendChild(d);
   });
+}
+
+function openEditLogModal(id){
+  const log = logs.find(l=>l.id===id);
+  if(!log) return;
+  editingHistoryLogId = id;
+  document.getElementById('edit-log-date').value = log.date;
+  document.getElementById('edit-log-exercise').value = log.exercise;
+  document.getElementById('edit-log-dayname').value = log.dayName || '';
+  document.getElementById('edit-log-daytype').value = log.dayType || '';
+  document.getElementById('edit-log-sets').value = log.sets ?? '';
+  document.getElementById('edit-log-reps').value = log.reps ?? '';
+  document.getElementById('edit-log-weight').value = log.weight ?? '';
+  document.getElementById('edit-log-duration').value = log.duration ?? '';
+  document.getElementById('edit-log-notes').value = log.notes || '';
+  document.getElementById('edit-log-single').checked = !!log.singleRep;
+  document.getElementById('edit-log-modal-ov').classList.add('open');
+}
+
+function closeEditLogModal(){
+  document.getElementById('edit-log-modal-ov').classList.remove('open');
+  editingHistoryLogId = null;
+}
+
+function saveEditedLog(){
+  if(editingHistoryLogId === null) return;
+  const log = logs.find(l=>l.id===editingHistoryLogId);
+  if(!log) return;
+  const date = document.getElementById('edit-log-date').value;
+  if(!date){ showToast('Pick a date'); return; }
+  const sets   = parseInt(document.getElementById('edit-log-sets').value) || null;
+  const reps   = parseInt(document.getElementById('edit-log-reps').value) || null;
+  const weight = parseFloat(document.getElementById('edit-log-weight').value);
+  const duration = parseInt(document.getElementById('edit-log-duration').value) || null;
+  const notes  = document.getElementById('edit-log-notes').value.trim() || null;
+  log.date = date;
+  log.sets = sets;
+  log.reps = reps;
+  log.weight = Number.isFinite(weight) ? weight : null;
+  log.duration = duration;
+  log.notes = notes;
+  log.singleRep = document.getElementById('edit-log-single').checked;
+  log.volume = (log.sets && log.reps && log.weight) ? log.sets * log.reps * log.weight : null;
+  scheduleSync();
+  renderHistory();
+  closeEditLogModal();
+  showToast('Entry updated');
+}
+
+function deleteHistoryLogById(id){
+  if(!confirm('Delete this history entry?')) return;
+  logs = logs.filter(l=>l.id!==id);
+  scheduleSync();
+  renderHistory();
+  showToast('Deleted');
+}
+
+function deleteHistoryLog(){
+  if(editingHistoryLogId === null) return;
+  deleteHistoryLogById(editingHistoryLogId);
+  closeEditLogModal();
 }
 
 // PROGRESS
@@ -2114,6 +2213,7 @@ function renderProgress(){
   drawChart('chart-weight',labels,maxW,'#e8ff47',wChart,c=>wChart=c);
   drawChart('chart-volume',labels,vols,'#47ffce',vChart,c=>vChart=c);
 }
+
 function renderSwimChart(exLogs, canvasId, startDate){
   const filtered = exLogs.filter(l=>{
     const d = new Date(l.date+'T00:00:00');
@@ -2313,10 +2413,22 @@ function addCustomExercise(name) {
   renderCustomWorkout();
 }
 
-function renderCustomWorkout() {
+async function renderCustomWorkout() {
   const date = document.getElementById('log-date').value;
   const body = document.getElementById('workout-body');
   body.innerHTML = '';
+
+  // Preload images for custom session exercises so the photo button is available immediately.
+  await Promise.all(customSessionExercises.map(async ex => {
+    if(!userExImages[ex.name]) {
+      const slots = {};
+      await Promise.all([1,2,3,4].map(async slot => {
+        const dataUrl = await getExImageDataUrl(ex.name, slot);
+        if(dataUrl) slots[slot] = dataUrl;
+      }));
+      userExImages[ex.name] = slots;
+    }
+  }));
 
   customSessionExercises.forEach((ex, idx) => {
     const exLogs   = logs.filter(l => l.date === date && l.exercise === ex.name && l.dayType === 'custom');
@@ -2326,6 +2438,7 @@ function renderCustomWorkout() {
     const isOpen = openCard === ex.name;
     if(!(idx in repCounts)) repCounts[idx] = 0;
 
+    const hasImg = hasExerciseImage(ex.name);
     const card = document.createElement('div');
     card.className = 'ex-card' + (isOpen ? ' open' : '');
     card.id = 'exc-' + idx;
@@ -2341,6 +2454,7 @@ function renderCustomWorkout() {
           <div class="ex-prescription">Custom</div>
         </div>
         <div class="ex-actions">
+          ${hasImg ? `<button class="ex-photo-btn" onclick="event.stopPropagation();openGal('${safeExName}')" title="Photos">📸</button>` : ''}
           <button class="ex-del-btn" onclick="event.stopPropagation();removeCustomExercise(${idx})" title="Remove">✕</button>
           <span class="ex-badge ${sc}">${st}</span>
           <span class="ex-chevron">▼</span>
@@ -2865,7 +2979,7 @@ async function savePlan() {
     planDays[i].title       = document.getElementById(`plan-title-${i}`).value.trim();
   }
 
-  const newPlan = {id: Date.now(), name, is_global: false, exercises: planDays, created_at: new Date().toISOString()};
+  const newPlan = {id: Date.now(), name, exercises: planDays, created_at: new Date().toISOString()};
   workoutPlans.push(newPlan);
   scheduleSync();
   showToast('Plan saved!');
@@ -3227,12 +3341,6 @@ const TODOS_DEFAULT = `TO DOs - Personal Training App
 ================================
 
 1- When selecting a custom workout, exercise pic doesn't appear. (e.g. DB Skullcrusher)
-
-2- Global exercises (admin-only edit):
-   - Admin can create global exercises (like global workout plans).
-   - Regular users cannot edit global exercises (name, sets, reps, equipment, photos, etc.).
-   - The ONE exception: users can save their own default weight for a global exercise.
-     This default weight is user-specific and does not affect the global exercise definition.
 `;
 
 let _todosSHA = null;

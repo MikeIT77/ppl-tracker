@@ -1,6 +1,6 @@
 {
-  "name": "PPL Tracker",
-  "short_name": "PPL",
+  "name": "Workout Tracker",
+  "short_name": "Workout",
   "description": "Personal workout tracker — log sets, track progress, sync via GitHub.",
   "start_url": "./workout-tracker.html",
   "display": "standalone",
