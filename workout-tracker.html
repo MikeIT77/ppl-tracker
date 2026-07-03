@@ -478,8 +478,7 @@ body.mobile-forced .page{padding:12px;}
 <div id="page-progress" class="page">
   <p class="page-title">PROGRESS</p>
   <div class="card"><div class="card-title">Exercise</div><div style="display:flex;flex-wrap:wrap;gap:6px;" id="progress-filters"></div></div>
-  <div class="card"><div class="chart-lbl">Max Weight Per DB (lbs)</div><div class="chart-wrap"><canvas id="chart-weight"></canvas></div></div>
-  <div class="card"><div class="chart-lbl">Total Volume (lbs)</div><div class="chart-wrap"><canvas id="chart-volume"></canvas></div></div>
+  <div id="progress-charts"></div>
 </div>
 
 <!-- PRs PAGE -->
@@ -1027,7 +1026,7 @@ function updateLibraryWeight(exName, weight) {
 let categories=['Weight Training','Cardio'], exerciseLibrary={};
 let userExImages = {};  // name -> {slot: dataURL, ...}  (in-memory display cache)
 let userExWeights = {}; // kept for compat, unused in GitHub mode
-let selectedDay=1, openCard=null, wChart=null, vChart=null, progressEx=null;
+let selectedDay=1, openCard=null, wChart=null, vChart=null, swimChart1=null, swimChart3=null, swimChart12=null, progressEx=null;
 let repCounts={};
 let timers={};  // idx -> {interval, remaining}
 let workoutPlans=[], userProfile={};
@@ -2083,7 +2082,30 @@ function renderProgress(){
     b.onclick=()=>{progressEx=ex;renderProgress();};fr.appendChild(b);
   });
   if(!progressEx||!logs.length) return;
+
+  const chartArea = document.getElementById('progress-charts');
+  chartArea.innerHTML = '';
+  destroyChart(wChart); destroyChart(vChart);
+  destroyChart(swimChart1); destroyChart(swimChart3); destroyChart(swimChart12);
+  wChart = vChart = swimChart1 = swimChart3 = swimChart12 = null;
+
   const exLogs=logs.filter(l=>l.exercise===progressEx);
+  if(progressEx==='Swimming'){
+    chartArea.innerHTML = `
+      <div class="card"><div class="chart-lbl">Swimming — Current Month</div><div class="chart-wrap"><canvas id="chart-swim-1m"></canvas></div></div>
+      <div class="card"><div class="chart-lbl">Swimming — Last 3 Months</div><div class="chart-wrap"><canvas id="chart-swim-3m"></canvas></div></div>
+      <div class="card"><div class="chart-lbl">Swimming — Last Year</div><div class="chart-wrap"><canvas id="chart-swim-12m"></canvas></div></div>
+    `;
+    renderSwimChart(exLogs, 'chart-swim-1m', getMonthStart(new Date()));
+    renderSwimChart(exLogs, 'chart-swim-3m', getRelativeMonthStart(new Date(), 3));
+    renderSwimChart(exLogs, 'chart-swim-12m', getRelativeMonthStart(new Date(), 12));
+    return;
+  }
+
+  chartArea.innerHTML = `
+    <div class="card"><div class="chart-lbl">Max Weight Per DB (lbs)</div><div class="chart-wrap"><canvas id="chart-weight"></canvas></div></div>
+    <div class="card"><div class="chart-lbl">Total Volume (lbs)</div><div class="chart-wrap"><canvas id="chart-volume"></canvas></div></div>
+  `;
   const byDate={};exLogs.forEach(l=>{if(!byDate[l.date])byDate[l.date]=[];byDate[l.date].push(l);});
   const dates=Object.keys(byDate).sort();
   const labels=dates.map(d=>fmtDate(d,true));
@@ -2092,10 +2114,49 @@ function renderProgress(){
   drawChart('chart-weight',labels,maxW,'#e8ff47',wChart,c=>wChart=c);
   drawChart('chart-volume',labels,vols,'#47ffce',vChart,c=>vChart=c);
 }
+function renderSwimChart(exLogs, canvasId, startDate){
+  const filtered = exLogs.filter(l=>{
+    const d = new Date(l.date+'T00:00:00');
+    return d >= startDate && d <= endOfToday();
+  });
+  const byDate={};
+  filtered.forEach(l=>{if(!byDate[l.date])byDate[l.date]=0;byDate[l.date]+=l.reps||0;});
+  const dates=Object.keys(byDate).sort();
+  const labels=dates.map(d=>fmtDate(d,true));
+  const laps=dates.map(d=>byDate[d]);
+  const color = '#47adff';
+  const setter = canvasId==='chart-swim-1m' ? c=>swimChart1=c : canvasId==='chart-swim-3m' ? c=>swimChart3=c : c=>swimChart12=c;
+  drawChart(canvasId, labels, laps, color, canvasId==='chart-swim-1m' ? swimChart1 : canvasId==='chart-swim-3m' ? swimChart3 : swimChart12, setter);
+}
+
+function getMonthStart(date){
+  return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function getRelativeMonthStart(date, monthsBack){
+  const d = new Date(date);
+  d.setMonth(d.getMonth() - monthsBack);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function endOfToday(){
+  const d = new Date();
+  d.setHours(23,59,59,999);
+  return d;
+}
+
+function destroyChart(chart){
+  if(chart){
+    try{chart.destroy();}catch(e){}
+  }
+}
+
 function drawChart(id,labels,data,color,existing,setter){
   if(existing)existing.destroy();
   const ctx=document.getElementById(id);if(!ctx)return;
-  setter(new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:color,backgroundColor:color+'18',pointBackgroundColor:color,pointRadius:4,tension:0.35,fill:true,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#555',font:{family:'DM Mono',size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y:{ticks:{color:'#555',font:{family:'DM Mono',size:10},callback:v=>v>=1000?Math.round(v/1000)+'k':v},grid:{color:'rgba(255,255,255,0.04)'}}}}}));
+  const isSwim = id.startsWith('chart-swim');
+  const yLabel = isSwim ? 'Laps' : id === 'chart-weight' ? 'Weight (lbs)' : id === 'chart-volume' ? 'Volume (lbs)' : '';
+  setter(new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:color,backgroundColor:color+'18',pointBackgroundColor:color,pointRadius:4,tension:0.35,fill:true,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{title:{display:true,text:'Date',color:'#999',font:{family:'DM Mono',size:11}},ticks:{color:'#555',font:{family:'DM Mono',size:10}},grid:{color:'rgba(255,255,255,0.04)'}},y:{title:{display:!!yLabel,text:yLabel,color:'#999',font:{family:'DM Mono',size:11}},ticks:{color:'#555',font:{family:'DM Mono',size:10},callback:v=>v>=1000?Math.round(v/1000)+'k':v},grid:{color:'rgba(255,255,255,0.04)'}}}}}));
 }
 
 // PRs
