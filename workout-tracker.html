@@ -496,7 +496,7 @@ body.mobile-forced .page{padding:12px;}
         </div>
         <div class="form-row-2">
           <div class="form-group"><label>Sets</label><input type="number" id="edit-log-sets" min="0"></div>
-          <div class="form-group"><label>Reps / Laps</label><input type="number" id="edit-log-reps" min="0"></div>
+          <div class="form-group"><label id="edit-log-reps-label">Reps / Laps</label><input type="number" id="edit-log-reps" min="0"></div>
         </div>
         <div class="form-row-2">
           <div class="form-group"><label>Weight (lbs)</label><input type="number" id="edit-log-weight" min="0" step="0.5"></div>
@@ -700,7 +700,7 @@ body.mobile-forced .page{padding:12px;}
         <input type="number" id="pex-sets" placeholder="e.g. 3" min="1" style="color-scheme:dark;">
       </div>
       <div class="ce-field">
-        <label>Reps</label>
+        <label id="pex-reps-label">Reps</label>
         <input type="number" id="pex-reps" placeholder="e.g. 10" min="1" style="color-scheme:dark;">
       </div>
       <div class="ce-field">
@@ -729,9 +729,13 @@ body.mobile-forced .page{padding:12px;}
         </select>
       </div>
       <div class="ce-field" id="ce-sets-reps-wrap" style="display:none;">
+        <div class="ce-mode-toggle" style="display:flex;gap:6px;margin-bottom:8px;">
+          <button type="button" class="rest-btn start" id="ce-mode-reps" onclick="setCeTimed(false)">Reps</button>
+          <button type="button" class="rest-btn" id="ce-mode-time" onclick="setCeTimed(true)">Time</button>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
           <div><label>Default Sets</label><input type="number" id="ce-sets" placeholder="3" min="1"></div>
-          <div><label>Default Reps</label><input type="number" id="ce-reps" placeholder="10" min="1"></div>
+          <div><label id="ce-reps-label">Default Reps</label><input type="number" id="ce-reps" placeholder="10" min="1"></div>
           <div><label id="ce-weight-label">Weight (lbs)</label><input type="number" id="ce-weight" placeholder="0" min="0" step="2.5"></div>
         </div>
       </div>
@@ -1120,7 +1124,7 @@ function renderDayStrip(){
     el.appendChild(btn);
   }
 }
-function selectDay(d){selectedDay=d;openCard=null;repCounts={};stopAllTimers();renderDayStrip();renderWorkout();}
+function selectDay(d){selectedDay=d;openCard=null;repCounts={};stopAllTimers();stopAllHolds();renderDayStrip();renderWorkout();}
 
 function stopAllTimers(){
   Object.values(timers).forEach(t=>{if(t.interval)clearInterval(t.interval);});
@@ -1169,7 +1173,7 @@ function renderWorkout(){
         <div class="ex-num">${idx+1}</div>
         <div class="ex-info">
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-prescription">${ex.sets} sets × ${ex.reps} reps</div>
+          <div class="ex-prescription">${ex.sets} sets × ${fmtReps(ex.name, ex.reps)}</div>
         </div>
         <div class="ex-actions">
           ${hasImg?`<button class="ex-photo-btn" onclick="event.stopPropagation();openGal('${safeExName}')">📸</button>`:''}
@@ -1192,20 +1196,20 @@ function renderWorkout(){
           </div>
         </div>
 
-        <!-- SINGLE REP COUNTER -->
-        <div class="rep-counter">
+        <!-- SINGLE REP COUNTER (hold timer for timed exercises) -->
+        ${isTimedEx(ex.name) ? buildHoldTimer(idx, ex.reps) : `<div class="rep-counter">
           <span class="rep-counter-label">Rep counter</span>
           <button class="rep-btn" onclick="changeRep(${idx},-1)">−</button>
           <input type="number" min="0" class="rep-count-val" id="rc-${idx}" value="${repCounts[idx]}" oninput="repCounts[${idx}]=parseInt(this.value)||0">
           <button class="rep-btn" onclick="changeRep(${idx},1)">+</button>
           <button class="log-rep-btn" onclick="(function(b){var r=parseInt(b.closest('.rep-counter').querySelector('input').value)||0;var w=parseFloat(b.closest('.lp').querySelector('.weight-input').value)||lastWeights['${safeExName}']||0;logSingleRep(${idx},'${safeExName}',r,w);})(this)">Log Rep</button>
-        </div>
+        </div>`}
 
         <!-- FULL SET FORM -->
         ${buildCardioForm(idx, ex.name, `logCardioSet(${idx},'${safeExName}',${selectedDay},'${PROGRAM[selectedDay]?.name||''}','${PROGRAM[selectedDay]?.type||''}')`) || `
         <div class="form-row">
           <div class="form-group"><label>Sets</label><input type="number" id="s-${idx}" value="${ex.sets}" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>
-          <div class="form-group"><label>Reps</label><input type="number" id="r-${idx}" value="${ex.reps}" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>
+          ${buildRepsInput(idx, ex.name, ex.reps)}
           <div class="form-group"><label>Per Dumbbell (lbs)</label><input type="number" class="weight-input" id="w-${idx}" value="${lastWeights[ex.name]||''}" placeholder="0" min="0" step="2.5" oninput="updateMX55(${idx})"><span id="mx55-${idx}" style="font-size:11px;color:var(--accent);margin-top:3px;display:block;min-height:14px;">${lastWeights[ex.name]?getMX55Setting(lastWeights[ex.name])?`MX55 → Setting ${getMX55Setting(lastWeights[ex.name])}`:'':''}</span></div>
         </div>
         <div class="form-row-2">
@@ -1242,10 +1246,71 @@ function updateMX55(idx) {
   el.textContent = setting ? `MX55 → Setting ${setting}` : '';
 }
 
+// ─── TIMED EXERCISES (e.g. Plank) — reps field holds seconds ──────────────────
+function isTimedEx(name){ return !!exerciseLibrary[name]?.timed; }
+function fmtReps(name, reps){ return isTimedEx(name) ? `${reps ?? '?'} sec` : `${reps ?? '?'} reps`; }
+
+let holdTimers={};  // idx -> {interval, remaining, total}
+function buildHoldTimer(idx, secs){
+  const t=holdTimers[idx];
+  const running=t&&t.interval;
+  const shown=running?t.remaining:(secs||0);
+  return `<div class="rest-timer-bar">
+    <span class="rest-timer-label">Hold</span>
+    <span class="rest-timer-display ${running?'running':'idle'}" id="hold-${idx}">${formatTime(shown)}</span>
+    <div class="rest-btns">
+      <button class="rest-btn" onclick="resetHold(${idx})">Reset</button>
+      <button class="rest-btn start" id="hold-start-${idx}" onclick="toggleHold(${idx})">${running?'Stop':'Start'}</button>
+    </div>
+  </div>`;
+}
+function _holdTarget(idx){ return parseInt(document.getElementById('r-'+idx)?.dataset.target)||parseInt(document.getElementById('r-'+idx)?.value)||0; }
+function toggleHold(idx){
+  const t=holdTimers[idx];
+  if(t&&t.interval){
+    clearInterval(t.interval);t.interval=null;
+    const r=document.getElementById('r-'+idx); if(r) r.value=t.total-t.remaining;
+    const sb=document.getElementById('hold-start-'+idx);if(sb){sb.textContent='Start';sb.className='rest-btn start';}
+    const el=document.getElementById('hold-'+idx);if(el) el.className='rest-timer-display idle';
+    return;
+  }
+  const total=_holdTarget(idx);
+  if(!total){showToast('Enter seconds first');return;}
+  holdTimers[idx]={interval:null,remaining:total,total};
+  const sb=document.getElementById('hold-start-'+idx);if(sb){sb.textContent='Stop';sb.className='rest-btn';}
+  const el=document.getElementById('hold-'+idx);if(el){el.className='rest-timer-display running';el.textContent=formatTime(total);}
+  holdTimers[idx].interval=setInterval(()=>{
+    const h=holdTimers[idx]; h.remaining--;
+    const el2=document.getElementById('hold-'+idx);
+    if(el2) el2.textContent=formatTime(h.remaining);
+    if(h.remaining<=0){
+      clearInterval(h.interval);h.interval=null;
+      const r=document.getElementById('r-'+idx); if(r) r.value=h.total;
+      if(el2){el2.className='rest-timer-display done';el2.textContent='Done!';}
+      const sb2=document.getElementById('hold-start-'+idx);if(sb2){sb2.textContent='Start';sb2.className='rest-btn start';}
+      showTimerAlert('⏱ Hold done — log your set');
+    }
+  },1000);
+}
+function resetHold(idx){
+  const t=holdTimers[idx]; if(t&&t.interval) clearInterval(t.interval);
+  delete holdTimers[idx];
+  const target=_holdTarget(idx);
+  const r=document.getElementById('r-'+idx); if(r&&r.dataset.target) r.value=r.dataset.target;
+  const el=document.getElementById('hold-'+idx);if(el){el.className='rest-timer-display idle';el.textContent=formatTime(target);}
+  const sb=document.getElementById('hold-start-'+idx);if(sb){sb.textContent='Start';sb.className='rest-btn start';}
+}
+function stopAllHolds(){ Object.values(holdTimers).forEach(t=>{if(t.interval)clearInterval(t.interval);}); holdTimers={}; }
+// Reps/Seconds input for the log form: editable seconds when timed, read-only reps otherwise
+function buildRepsInput(idx, name, reps){
+  if(isTimedEx(name)) return `<div class="form-group"><label>Seconds</label><input type="number" id="r-${idx}" value="${reps||''}" data-target="${reps||''}" placeholder="60" min="0" oninput="this.dataset.target=this.value"></div>`;
+  return `<div class="form-group"><label>Reps</label><input type="number" id="r-${idx}" value="${reps||''}" placeholder="10" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>`;
+}
+
 function buildSetRows(exLogs){
   if(!exLogs.length) return '<div style="font-size:12px;color:var(--muted);text-align:center;padding:6px 0">No sets logged yet</div>';
   return exLogs.slice().reverse().map(e=>{
-    const v=e.sets*e.reps*e.weight;
+    const v=e.timed?0:e.sets*e.reps*e.weight;
     const ap=logs.filter(l=>l.exercise===e.exercise&&l.id!==e.id);
     const ipr=e.weight>0&&(!ap.length||ap.every(l=>(l.weight||0)<=e.weight));
     let label;
@@ -1253,6 +1318,8 @@ function buildSetRows(exLogs){
       label = `${e.reps || 0} Laps${e.notes ? ` — ${e.notes}` : ''}`;
     } else if(e.exercise === 'Walking') {
       label = `${e.duration || 0} min${e.notes ? ` — ${e.notes}` : ''}`;
+    } else if(e.timed) {
+      label = `${e.reps||0} sec${e.weight?' × '+e.weight+' lbs':''}`;
     } else {
       label = e.weight ? `${e.reps} × ${e.weight} lbs/db${e.duration?' · '+e.duration+'min':''}` : `${e.reps} reps${e.duration?' · '+e.duration+'min':''}`;
     }
@@ -1358,8 +1425,11 @@ async function logSet(idx,exName){
   const weight=parseFloat(document.getElementById('w-'+idx)?.value)||0;
   const duration=parseInt(document.getElementById('d-'+idx)?.value)||null;
   const notes=(document.getElementById('n-'+idx)?.value||'').trim();
+  const timed=isTimedEx(exName);
+  if(timed&&!reps){showToast('Enter seconds first');return;}
   if(!sets&&!reps&&!weight){showToast('Enter values first');return;}
-  const entry={id:Date.now(),date,day:selectedDay,dayName:PROGRAM[selectedDay].name,dayType:PROGRAM[selectedDay].type,exercise:exName,sets,reps,weight,duration,notes,volume:sets*reps*weight};
+  const entry={id:Date.now(),date,day:selectedDay,dayName:PROGRAM[selectedDay].name,dayType:PROGRAM[selectedDay].type,exercise:exName,sets:timed?1:sets,reps,weight,duration,notes,volume:timed?null:sets*reps*weight,...(timed?{timed:true}:{})};
+  if(timed) resetHold(idx);
   const ap=logs.filter(l=>l.exercise===exName);
   const isPR=weight>0&&ap.length>0&&ap.every(l=>(l.weight||0)<=weight);
   logs.push(entry);
@@ -1435,8 +1505,9 @@ function startTimerRun(idx){
 
 function formatTime(s){const m=Math.floor(s/60),sec=s%60;return `${m}:${sec.toString().padStart(2,'0')}`;}
 
-function showTimerAlert(){
+function showTimerAlert(msg){
   const a=document.getElementById('timer-alert');
+  a.textContent=msg||'⏱ Rest done — next set!';
   a.classList.add('show');
   setTimeout(()=>a.classList.remove('show'),3000);
 }
@@ -1674,7 +1745,7 @@ async function renderExercisesTab() {
     item.style.borderLeft = `2px solid ${color}`;
 
     const metaParts = [];
-    if(ex.sets && ex.reps) metaParts.push(`${ex.sets} sets × ${ex.reps} reps`);
+    if(ex.sets && ex.reps) metaParts.push(`${ex.sets} sets × ${fmtReps(ex.name, ex.reps)}`);
     if(dayName) metaParts.push(`<span style="color:${color}">${dayName}</span>`);
 
     item.innerHTML = `
@@ -1732,10 +1803,10 @@ function renderCeCatPills() {
   });
   // Refresh dropdown to hide already-selected cats
   refreshCatSelect();
-  // Show sets/reps if Weight Training is among selected
-  const isWeight = ceCats.includes('Weight Training');
+  // Show sets/reps (and Reps/Time toggle) for any category except Cardio
+  const showSetsReps = ceCats.some(c => c !== 'Cardio');
   const wrap2 = document.getElementById('ce-sets-reps-wrap');
-  if(wrap2) wrap2.style.display = isWeight ? 'block' : 'none';
+  if(wrap2) wrap2.style.display = showSetsReps ? 'block' : 'none';
 }
 
 function removeCeCat(cat) {
@@ -1837,6 +1908,15 @@ function refreshCatSelect() {
 
 
 let ceEditOriginalName = null;  // null = create mode, string = edit mode
+let ceTimed = false;  // true = time-based exercise (reps field holds seconds)
+
+function setCeTimed(on) {
+  ceTimed = !!on;
+  document.getElementById('ce-mode-reps').className = 'rest-btn' + (ceTimed ? '' : ' start');
+  document.getElementById('ce-mode-time').className = 'rest-btn' + (ceTimed ? ' start' : '');
+  document.getElementById('ce-reps-label').textContent = ceTimed ? 'Seconds' : 'Default Reps';
+  document.getElementById('ce-reps').placeholder = ceTimed ? '60' : '10';
+}
 
 function closeCeModal() {
   document.getElementById('ce-modal-ov').classList.remove('open');
@@ -1853,6 +1933,7 @@ function openCreateExModal() {
   document.getElementById('ce-sets').value = '';
   document.getElementById('ce-reps').value = '';
   document.getElementById('ce-weight').value = '';
+  setCeTimed(false);
   document.getElementById('ce-sets-reps-wrap').style.display = 'none';
   document.getElementById('ce-images-wrap').style.display = 'none';
   renderCeCatPills();
@@ -1877,6 +1958,7 @@ async function openEditExModal(name) {
   document.getElementById('ce-sets').value = entry.sets || '';
   document.getElementById('ce-reps').value = entry.reps || '';
   document.getElementById('ce-weight').value = entry.weight || '';
+  setCeTimed(entry.timed);
   document.getElementById('ce-images-wrap').style.display = 'block';
   // Load existing images from GitHub/cache
   ceImages = {1:null,2:null,3:null,4:null};
@@ -1979,7 +2061,7 @@ async function confirmCreateEx() {
   }
 
   const equipment = ceEquip.length ? JSON.stringify(ceEquip) : null;
-  exerciseLibrary[name] = {category, sets, reps, weight, equipment};
+  exerciseLibrary[name] = {category, sets, reps, weight, equipment, ...(ceTimed ? {timed: true} : {})};
   scheduleSync();
 
   closeCeModal();
@@ -2087,6 +2169,7 @@ function renderHistory(){
     function setLabel(e){
       if(e.exercise==='Swimming') return `${e.reps||0} Lap${(e.reps||0)!==1?'s':''}${e.notes?` — ${e.notes}`:''}`;
       if(e.exercise==='Walking')  return `${e.duration||0} min${e.notes?` — ${e.notes}`:''}`;
+      if(e.timed) return `${e.reps||0} sec${e.weight?' × '+e.weight+' lbs':''}`;
       return e.weight ? `${e.reps} × ${e.weight} lbs/db` : `${e.reps} reps`;
     }
 
@@ -2120,6 +2203,7 @@ function openEditLogModal(id){
   document.getElementById('edit-log-daytype').value = log.dayType || '';
   document.getElementById('edit-log-sets').value = log.sets ?? '';
   document.getElementById('edit-log-reps').value = log.reps ?? '';
+  document.getElementById('edit-log-reps-label').textContent = log.timed ? 'Seconds' : 'Reps / Laps';
   document.getElementById('edit-log-weight').value = log.weight ?? '';
   document.getElementById('edit-log-duration').value = log.duration ?? '';
   document.getElementById('edit-log-notes').value = log.notes || '';
@@ -2150,7 +2234,7 @@ function saveEditedLog(){
   log.duration = duration;
   log.notes = notes;
   log.singleRep = document.getElementById('edit-log-single').checked;
-  log.volume = (log.sets && log.reps && log.weight) ? log.sets * log.reps * log.weight : null;
+  log.volume = (!log.timed && log.sets && log.reps && log.weight) ? log.sets * log.reps * log.weight : null;
   scheduleSync();
   renderHistory();
   closeEditLogModal();
@@ -2471,7 +2555,7 @@ async function renderCustomWorkout() {
             <button class="rest-btn start" id="timer-start-${idx}" onclick="toggleTimer(${idx})">Start</button>
           </div>
         </div>` : ''}
-        ${!CARDIO_SPECIAL[ex.name] ? `<div class="rep-counter">
+        ${isTimedEx(ex.name) ? buildHoldTimer(idx, exerciseLibrary[ex.name]?.reps) : !CARDIO_SPECIAL[ex.name] ? `<div class="rep-counter">
           <span class="rep-counter-label">Rep counter</span>
           <button class="rep-btn" onclick="changeRep(${idx},-1)">−</button>
           <input type="number" min="0" class="rep-count-val" id="rc-${idx}" value="${repCounts[idx]}" oninput="repCounts[${idx}]=parseInt(this.value)||0">
@@ -2481,7 +2565,7 @@ async function renderCustomWorkout() {
         ${buildCardioForm(idx, ex.name, `logCardioSet(${idx},'${safeExName}',0,'Custom Workout','custom')`) || `
         <div class="form-row">
           <div class="form-group"><label>Sets</label><input type="number" id="s-${idx}" placeholder="3" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>
-          <div class="form-group"><label>Reps</label><input type="number" id="r-${idx}" placeholder="10" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>
+          ${buildRepsInput(idx, ex.name, isTimedEx(ex.name) ? exerciseLibrary[ex.name]?.reps : '')}
           <div class="form-group"><label>Per Dumbbell (lbs)</label><input type="number" class="weight-input" id="w-${idx}" value="${lastWeights[ex.name]||''}" placeholder="0" min="0" step="2.5"></div>
         </div>
         <div class="form-row-2">
@@ -2513,8 +2597,11 @@ async function logCustomSet(idx, exName) {
   const notes    = document.getElementById(`n-${idx}`).value.trim() || null;
   const volume   = (sets && reps && weight) ? sets * reps * weight * 2 : null;
 
+  const timed = isTimedEx(exName);
+  if(timed && !reps) { showToast('Enter seconds first'); return; }
+  if(timed) resetHold(idx);
   const entry = { id: Date.now() + idx, date, day: 0, dayName: 'Custom Workout',
-    dayType: 'custom', exercise: exName, sets, reps, weight, volume, duration, notes, singleRep: false };
+    dayType: 'custom', exercise: exName, sets: timed ? 1 : sets, reps, weight, volume: timed ? null : volume, duration, notes, singleRep: false, ...(timed ? {timed: true} : {}) };
   logs.push(entry);
   scheduleSync();
   updateLibraryWeight(exName, weight);
@@ -2661,7 +2748,7 @@ async function renderWorkoutFromPlan(planId, dayIdx) {
           <div class="ex-num">${idx + 1}</div>
           <div class="ex-info">
             <div class="ex-name">${ex.name}</div>
-            <div class="ex-prescription">${ex.sets || '?'} sets × ${ex.reps || '?'} reps</div>
+            <div class="ex-prescription">${ex.sets || '?'} sets × ${fmtReps(ex.name, ex.reps)}</div>
           </div>
           <div class="ex-actions">
             <span class="ex-badge ${sc}">${st}</span>
@@ -2680,7 +2767,7 @@ async function renderWorkoutFromPlan(planId, dayIdx) {
               <button class="rest-btn start" id="timer-start-${idx}" onclick="toggleTimer(${idx})">Start</button>
             </div>
           </div>` : ''}
-          ${!CARDIO_SPECIAL[ex.name] ? `<div class="rep-counter">
+          ${isTimedEx(ex.name) ? buildHoldTimer(idx, ex.reps) : !CARDIO_SPECIAL[ex.name] ? `<div class="rep-counter">
             <span class="rep-counter-label">Rep counter</span>
             <button class="rep-btn" onclick="changeRep(${idx},-1)">−</button>
             <input type="number" min="0" class="rep-count-val" id="rc-${idx}" value="${repCounts[idx]}" oninput="repCounts[${idx}]=parseInt(this.value)||0">
@@ -2690,7 +2777,7 @@ async function renderWorkoutFromPlan(planId, dayIdx) {
           ${buildCardioForm(idx, ex.name, `logCardioSet(${idx},'${safeExName}',${selectedPlanId+100},'${safePlanName}','plan')`) || `
           <div class="form-row">
             <div class="form-group"><label>Sets</label><input type="number" id="s-${idx}" value="${ex.sets || ''}" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>
-            <div class="form-group"><label>Reps</label><input type="number" id="r-${idx}" value="${ex.reps || ''}" readonly tabindex="-1" style="opacity:0.5;cursor:default;pointer-events:none;"></div>
+            ${buildRepsInput(idx, ex.name, ex.reps)}
             <div class="form-group"><label>Per Dumbbell (lbs)</label><input type="number" class="weight-input" id="w-${idx}" value="${lastWeights[ex.name]||''}" placeholder="0" min="0" step="2.5" oninput="updateMX55(${idx})"><span id="mx55-${idx}" style="font-size:11px;color:var(--accent);margin-top:3px;display:block;min-height:14px;">${lastWeights[ex.name]?getMX55Setting(lastWeights[ex.name])?`MX55 → Setting ${getMX55Setting(lastWeights[ex.name])}`:'':''}</span></div>
           </div>
           <div class="form-row-2">
@@ -2721,8 +2808,11 @@ async function logPlanSet(idx, exName, planName) {
   const notes = document.getElementById(`n-${idx}`).value.trim() || null;
   const volume = (sets && reps && weight) ? sets * reps * weight * 2 : null;
 
+  const timed = isTimedEx(exName);
+  if(timed && !reps) { showToast('Enter seconds first'); return; }
+  if(timed) resetHold(idx);
   const entry = { id: Date.now() + idx, date, day: selectedPlanId + 100, dayName: planName,
-    dayType: 'plan', exercise: exName, sets, reps, weight, volume, duration, notes, singleRep: false };
+    dayType: 'plan', exercise: exName, sets: timed ? 1 : sets, reps, weight, volume: timed ? null : volume, duration, notes, singleRep: false, ...(timed ? {timed: true} : {}) };
   logs.push(entry);
   scheduleSync();
   updateLibraryWeight(exName, weight);
@@ -2911,6 +3001,8 @@ function openPexModal(title, callback, exName) {
   document.getElementById('pex-weight').value = '';
   const equip = parseEquip(exerciseLibrary[exName]?.equipment || '');
   document.getElementById('pex-weight-label').textContent = equip.includes('Dumbbells') ? 'Weight per DB (lbs)' : 'Total Weight (lbs)';
+  document.getElementById('pex-reps-label').textContent = isTimedEx(exName) ? 'Seconds' : 'Reps';
+  document.getElementById('pex-reps').placeholder = isTimedEx(exName) ? 'e.g. 60' : 'e.g. 10';
   _pexCallback = callback;
   document.getElementById('pex-modal-ov').classList.add('open');
   document.getElementById('pex-sets').focus();
@@ -2956,7 +3048,7 @@ function renderPlanDayExercises(dayIdx) {
     row.innerHTML = `
       <span style="font-size:13px;font-weight:500;">${ex.name}</span>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;color:var(--accent);font-family:var(--fm);">${ex.sets||'?'}×${ex.reps||'?'}${ex.weight ? ` @ ${ex.weight}lbs` : ''}</span>
+        <span style="font-size:12px;color:var(--accent);font-family:var(--fm);">${ex.sets||'?'}×${ex.reps||'?'}${isTimedEx(ex.name)?'s':''}${ex.weight ? ` @ ${ex.weight}lbs` : ''}</span>
         <button onclick="removePlanDayEx(${dayIdx},${exIdx})"
           style="padding:3px 7px;border-radius:5px;border:1px solid rgba(255,74,74,0.2);background:none;color:rgba(255,74,74,0.5);font-size:12px;cursor:pointer;">✕</button>
       </div>`;
@@ -3097,7 +3189,7 @@ function renderEditDayExercises(dayIdx) {
     row.innerHTML = `
       <span style="font-size:13px;font-weight:500;">${ex.name}</span>
       <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;color:var(--accent);font-family:var(--fm);">${ex.sets||'?'}×${ex.reps||'?'}${ex.weight ? ` @ ${ex.weight}lbs` : ''}</span>
+        <span style="font-size:12px;color:var(--accent);font-family:var(--fm);">${ex.sets||'?'}×${ex.reps||'?'}${isTimedEx(ex.name)?'s':''}${ex.weight ? ` @ ${ex.weight}lbs` : ''}</span>
         <button onclick="removeEditDayEx(${dayIdx},${exIdx})"
           style="padding:3px 7px;border-radius:5px;border:1px solid rgba(255,74,74,0.2);background:none;color:rgba(255,74,74,0.5);font-size:12px;cursor:pointer;">✕</button>
       </div>`;
@@ -3225,12 +3317,12 @@ function renderPlans() {
             <span style="font-size:11px;color:var(--muted);margin-left:auto;">${d.day_of_week}</span>
           </div>
           <div style="font-size:12px;color:var(--muted);font-family:var(--fm);">
-            ${d.exercises && d.exercises.length ? d.exercises.map(e=>`${e.name} ${e.sets}×${e.reps}`).join(' · ') : 'No exercises'}
+            ${d.exercises && d.exercises.length ? d.exercises.map(e=>`${e.name} ${e.sets}×${e.reps}${isTimedEx(e.name)?'s':''}`).join(' · ') : 'No exercises'}
           </div>
         </div>`).join('');
     } else {
       daysHtml = `<div style="font-size:12px;color:var(--muted);font-family:var(--fm);margin-top:6px;">
-        ${p.exercises.length ? p.exercises.map(e=>`${e.name}${e.sets?` ${e.sets}×${e.reps||'?'}`:''}`).join(' · ') : 'No exercises'}
+        ${p.exercises.length ? p.exercises.map(e=>`${e.name}${e.sets?` ${e.sets}×${e.reps||'?'}${isTimedEx(e.name)?'s':''}`:''}`).join(' · ') : 'No exercises'}
       </div>`;
     }
 
