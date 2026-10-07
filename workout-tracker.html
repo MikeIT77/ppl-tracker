@@ -6,6 +6,9 @@
 <title>Workout Tracker</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0d0d0f">
+<script>
+try{if(localStorage.getItem('theme')==='light'){document.documentElement.setAttribute('data-theme','light');document.querySelector('meta[name=theme-color]').content='#f4f4f1';}}catch(e){}
+</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,6 +23,23 @@
   --fd:'Bebas Neue',sans-serif; --fb:'DM Sans',sans-serif; --fm:'DM Mono',monospace;
   --r:10px; --rl:14px;
 }
+/* LIGHT MODE — overrides the palette above; dark stays the default */
+:root[data-theme="light"] {
+  --bg:#f4f4f1; --surface:#ffffff; --surface2:#ececea; --surface3:#e2e2df;
+  --border:rgba(0,0,0,0.09); --border2:rgba(0,0,0,0.16);
+  --text:#18181a; --muted:#6b6b6b;
+  --accent:#7d9400; --accent2:#00a884;
+  --push:#e0502e; --pull:#1f8fdc; --legs:#8a4fe0; --red:#d93030;
+}
+:root[data-theme="light"] .form-group input::placeholder,
+:root[data-theme="light"] .sd-search::placeholder,
+:root[data-theme="light"] .ce-field input::placeholder{color:#aaa;}
+:root[data-theme="light"] .set-del{color:#aaa;}
+:root[data-theme="light"] .dtag.custom{background:rgba(0,0,0,0.06);}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#c8c8c4;}
+.theme-btn{font-size:14px;line-height:1;}
+.mobile-nav-top .mnav-btn-sd.theme-btn{padding:6px 8px;}
+.mobile-user-info button{white-space:nowrap;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--fb);background:var(--bg);color:var(--text);min-height:100vh;}
 .nav{display:flex;gap:2px;padding:10px 12px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
@@ -270,12 +290,12 @@ body{font-family:var(--fb);background:var(--bg);color:var(--text);min-height:100
 
 /* ── MOBILE NAV ─────────────────────────────────────── */
 .mobile-nav{display:none;position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);}
-.mobile-nav-top{display:flex;align-items:center;padding:8px 12px;gap:8px;border-bottom:1px solid var(--border);}
+.mobile-nav-top{display:flex;align-items:center;padding:8px 12px;gap:6px;border-bottom:1px solid var(--border);}
 .mobile-nav-top .nav-logo{font-family:var(--fd);font-size:20px;color:var(--accent);margin-right:auto;}
 .mobile-user-info{display:flex;flex-direction:column;align-items:flex-end;gap:1px;}
 .mobile-user-info span{font-size:11px;color:var(--muted);}
 .mobile-user-info button{font-size:10px;color:rgba(255,74,74,0.6);background:none;border:none;cursor:pointer;padding:0;font-family:var(--fm);}
-.mobile-nav-top .mnav-btn-sd{padding:6px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-family:var(--fb);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.mobile-nav-top .mnav-btn-sd{padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-family:var(--fb);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
 .mobile-nav-top .mnav-btn-sd.active{background:var(--surface2);color:var(--accent);border-color:rgba(232,255,71,0.3);}
 .mobile-nav-bottom{display:flex;padding:6px 8px;gap:4px;}
 .mnav-btn{flex:1;padding:7px 4px;border-radius:7px;border:none;background:transparent;color:var(--muted);font-family:var(--fb);font-size:12px;font-weight:500;cursor:pointer;text-align:center;transition:all 0.15s;}
@@ -294,9 +314,9 @@ body.mobile-forced .nav{display:none !important;}
 body.mobile-forced .mobile-nav{display:block !important;}
 body.mobile-forced .page{padding:12px;}
 .sync-status{color:var(--muted);transition:color 0.3s;}
-.sync-status.syncing{color:#e8ff47;animation:pulse 1s infinite;}
-.sync-status.synced{color:#47ffce;}
-.sync-status.error{color:#ff4a4a;}
+.sync-status.syncing{color:var(--accent);animation:pulse 1s infinite;}
+.sync-status.synced{color:var(--accent2);}
+.sync-status.error{color:var(--red);}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
 </style>
 </head>
@@ -346,6 +366,7 @@ body.mobile-forced .page{padding:12px;}
     <span class="nav-logo">WORKOUT</span>
     <button class="mnav-btn-sd" id="mnav-sd-btn" onclick="showPage('settings-data',null,true)">Settings &amp; Data</button>
     <button class="mnav-btn-sd" onclick="showTodos()" style="color:var(--push);border-color:rgba(255,107,74,0.3);">To Dos</button>
+    <button class="mnav-btn-sd theme-btn" onclick="toggleTheme()" title="Light / dark mode">☀</button>
     <div class="mobile-user-info">
       <span id="sync-status-mobile" class="sync-status" style="font-size:10px;font-family:'DM Mono',monospace;"></span>
       <button onclick="showGitHubSettings()" style="font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;cursor:pointer;">⚙ GitHub</button>
@@ -368,6 +389,7 @@ body.mobile-forced .page{padding:12px;}
   <button class="nav-btn" onclick="showPage('prs',this)">PRs</button>
   <button class="nav-btn" onclick="showPage('profile',this)">Profile</button>
   <button class="nav-btn" onclick="showTodos()" style="color:var(--push);border:1px solid rgba(255,107,74,0.3);">To Dos</button>
+  <button class="nav-btn theme-btn" onclick="toggleTheme()" title="Light / dark mode">☀</button>
   <div style="display:flex;flex-direction:column;align-items:center;margin-left:6px;gap:3px;">
     <span id="sync-status" class="sync-status" style="font-size:10px;font-family:'DM Mono',monospace;white-space:nowrap;"></span>
     <button onclick="showGitHubSettings()" style="font-size:10px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:5px;padding:2px 7px;cursor:pointer;font-family:var(--fm);">⚙ GitHub</button>
@@ -3440,6 +3462,22 @@ initApp();
 if('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
 }
+
+// ─── LIGHT / DARK MODE ────────────────────────────────────────────────────────
+function applyTheme(t) {
+  const light = t === 'light';
+  if(light) document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  document.querySelector('meta[name=theme-color]').content = light ? '#f4f4f1' : '#0d0d0f';
+  // Icon shows the mode you'd switch TO
+  document.querySelectorAll('.theme-btn').forEach(b => b.textContent = light ? '☾' : '☀');
+}
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem('theme', next); } catch(e) {}
+  applyTheme(next);
+}
+applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
 
 // ─── TO DOS MODAL ─────────────────────────────────────────────────────────────
 const TODOS_DEFAULT = `TO DOs - Personal Training App
