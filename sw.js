@@ -1,5 +1,5 @@
-const CACHE = 'ppl-v1';
-const PRECACHE = ['./workout-tracker.html', './manifest.json', './icon.svg'];
+const CACHE = 'ppl-v2';
+const PRECACHE = ['./workout-tracker.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './favicon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
