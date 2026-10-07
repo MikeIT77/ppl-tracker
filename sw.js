@@ -22,7 +22,9 @@ self.addEventListener('fetch', e => {
   // Network-first for the HTML so updates are picked up immediately
   if(url.pathname.endsWith('.html')) {
     e.respondWith(
-      fetch(e.request).then(res => {
+      // no-cache: revalidate with the server instead of using GitHub Pages' 10-min HTTP cache
+      // (URL string, not e.request — navigate requests can't be re-wrapped with options)
+      fetch(e.request.url, { cache: 'no-cache' }).then(res => {
         const clone = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return res;
